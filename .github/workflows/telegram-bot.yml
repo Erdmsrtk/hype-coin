@@ -25,7 +25,3 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.CHAT_ID }}
           VS_CURRENCY: 'usd'
         run: python hype_coin_detector_bot.py
-- uses: actions/checkout@v3
-
-   - name: List repository files
-     run: ls -R .
