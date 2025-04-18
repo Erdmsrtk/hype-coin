@@ -10,7 +10,7 @@ bot = Bot(token=TOKEN)
 
 Fetch trending coins from CoinGecko
 
-def detect_hype_coins(): try: result = requests.get('https://api.coingecko.com/api/v3/search/trending').json() return [item['item']['id'] for item in result.get('coins', [])] except Exception as e: print(f"Error fetching trending coins: {e}") return []
+def detect_hype_coins(): try: data = requests.get( 'https://api.coingecko.com/api/v3/search/trending' ).json() return [item['item']['id'] for item in data.get('coins', [])] except Exception as e: print(f"Error fetching trending coins: {e}") return []
 
 Calculate RSI indicator
 
