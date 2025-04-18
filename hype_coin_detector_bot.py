@@ -1,12 +1,14 @@
-#!/usr/bin/env python3 """ hype_coin_detector_bot.py
+#!/usr/bin/env python3 """
 
-Tek seferlik calistirildiginda CoinGecko'dan trending coinleri tespit eder, fiyat + teknik indikatör (RSI, MACD diff) analizi yapar ve Telegram'a gonderir.
+hype_coin_detector_bot.py
 
-Her 5 dakikada bir GitHub Actions ile tetiklenmeye hazir.
+Tek seferlik çalıştırıldığında CoinGecko'dan trending coinleri tespit eder, fiyat + teknik indikatör (RSI, MACD diff) analizi yapar ve Telegram'a gönderir. Her 5 dakikada bir GitHub Actions ile tetiklenmeye hazır.
 
 Gereksinimler: pip install python-telegram-bot requests pandas
 
-Cevresel Degiskenler: TELEGRAM_TOKEN    Bot token'iniz (actions secrets icine ekleyin) TELEGRAM_CHAT_ID  Mesajin gidecegi chat ID (actions secrets icine ekleyin) VS_CURRENCY       (opsiyonel) Fiyat icin para birimi, default 'usd' """ import os import requests import pandas as pd from datetime import datetime from telegram import Bot
+Çevresel Değişkenler: TELEGRAM_TOKEN    Bot token'iniz (actions secrets içine ekleyin) TELEGRAM_CHAT_ID  Mesajin gidecegi chat ID (actions secrets içine ekleyin) VS_CURRENCY       (opsiyonel) Fiyat icin para birimi, default 'usd' """
+
+import os import requests import pandas as pd from datetime import datetime from telegram import Bot
 
 === Config ===
 
@@ -28,12 +30,11 @@ def calculate_macd(prices, fast=12, slow=26, sig=9): e_fast = prices.ewm(span=fa
 
 Coin analizi: fiyat, %24 değişim, RSI, MACD farkı
 
-def analyze_coin(cid): # Piyasa verisi try: m = requests.get( f'https://api.coingecko.com/api/v3/coins/markets?vs_currency={VS_CUR}&ids={cid}' ).json()[0] except Exception as e: raise RuntimeError(f"Market data error for {cid}: {e}")
+def analyze_coin(cid): try: m = requests.get( f'https://api.coingecko.com/api/v3/coins/markets?vs_currency={VS_CUR}&ids={cid}' ).json()[0] except Exception as e: raise RuntimeError(f"Market data error for {cid}: {e}")
 
 price = m.get('current_price')
 ch24 = m.get('price_change_percentage_24h')
 
-# Fiyat geçmişi
 hist_url = (
     f'https://api.coingecko.com/api/v3/coins/{cid}/market_chart'
     f'?vs_currency={VS_CUR}&days=1&interval=hourly'
