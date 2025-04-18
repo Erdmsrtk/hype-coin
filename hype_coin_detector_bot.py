@@ -1,12 +1,12 @@
 #!/usr/bin/env python3 """ hype_coin_detector_bot.py
 
-Tek seferlik çalıştırıldığında CoinGecko’dan trending coinleri tespit eder, fiyat + teknik indikatör (RSI, MACD diff) analizi yapar ve Telegram’a gönderir.
+Tek seferlik calistirildiginda CoinGecko'dan trending coinleri tespit eder, fiyat + teknik indikatör (RSI, MACD diff) analizi yapar ve Telegram'a gonderir.
 
-Her 5 dakikada bir GitHub Actions ile tetiklenmeye hazır.
+Her 5 dakikada bir GitHub Actions ile tetiklenmeye hazir.
 
 Gereksinimler: pip install python-telegram-bot requests pandas
 
-Çevresel Değişkenler: TELEGRAM_TOKEN: Bot token’ınız (actions secrets içine ekleyin) TELEGRAM_CHAT_ID: Mesajın gideceği chat ID (actions secrets içine ekleyin) VS_CURRENCY: (opsiyonel) Fiyat için para birimi, default 'usd' """ import os import requests import pandas as pd from datetime import datetime from telegram import Bot
+Cevresel Degiskenler: TELEGRAM_TOKEN    Bot token'iniz (actions secrets icine ekleyin) TELEGRAM_CHAT_ID  Mesajin gidecegi chat ID (actions secrets icine ekleyin) VS_CURRENCY       (opsiyonel) Fiyat icin para birimi, default 'usd' """ import os import requests import pandas as pd from datetime import datetime from telegram import Bot
 
 === Config ===
 
@@ -14,7 +14,7 @@ TOKEN   = os.getenv('TELEGRAM_TOKEN') CHAT_ID = os.getenv('TELEGRAM_CHAT_ID') VS
 
 bot = Bot(token=TOKEN)
 
-Trend coinleri CoinGecko’dan al
+Trend coinleri CoinGecko'dan al
 
 def detect_hype_coins(): try: j = requests.get('https://api.coingecko.com/api/v3/search/trending').json() return [c['item']['id'] for c in j.get('coins', [])] except Exception as e: print(f"Error fetching trending coins: {e}") return []
 
@@ -64,7 +64,7 @@ Telegram mesajı gönderimi
 
 def send_signal(cid, info): ts = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S') text = ( f"🚀 <b>Hype Coin: {cid.upper()}</b>\n" f"Fiyat: {info['price']} {VS_CUR.upper()}\n" f"24s Δ: {info['change_24h']}%\n" f"RSI: {info['rsi']}\n" f"MACD Diff: {info['macd_diff']}\n" f"Zaman (UTC): {ts}" ) try: bot.send_message(chat_id=CHAT_ID, text=text, parse_mode='HTML') print(f"Sent alert for {cid}") except Exception as e: print(f"Failed to send signal for {cid}: {e}")
 
-Ana fonksiyon: hata tolere ederek devam eden döngü
+Ana fonksiyon
 
 def main(): coins = detect_hype_coins() print(f"Detected coins: {coins}") for cid in coins: try: data = analyze_coin(cid) send_signal(cid, data) except Exception as e: print(f"Error analyzing {cid}: {e}")
 
