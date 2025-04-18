@@ -2,8 +2,8 @@ name: Run Hype Coin Bot
 
 on:
   schedule:
-    - cron: '*/5 * * * *'    # Her 5 dakikada bir
-  workflow_dispatch:       # Manuel tetikleme
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 jobs:
   run-bot:
@@ -12,16 +12,33 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-python@v4
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.x'
 
       - name: Install dependencies
         run: pip install python-telegram-bot requests pandas
 
-      - name: Run the bot
+      - name: Test Telegram connectivity
+        run: |
+          python - <<'EOF'
+import os
+from telegram import Bot
+bot = Bot(os.getenv("TELEGRAM_TOKEN"))
+try:
+    r = bot.send_message(chat_id=os.getenv("TELEGRAM_CHAT_ID"), text="📡 [CI] Test mesajı")
+    print("✅ Test mesajı gönderildi:", r)
+except Exception as e:
+    print("❌ Test hatası:", e)
+EOF
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.CHAT_ID }}
+
+      - name: Run hype_coin_detector_bot.py
+        run: python hype_coin_detector_bot.py
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.CHAT_ID }}
           VS_CURRENCY: 'usd'
-        run: python hype_coin_detector_bot.py
