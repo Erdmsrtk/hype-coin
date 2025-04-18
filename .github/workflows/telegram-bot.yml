@@ -1,0 +1,27 @@
+name: Run Hype Coin Bot
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'    # Her 5 dakikada bir
+  workflow_dispatch:       # Manuel tetikleme
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install python-telegram-bot requests pandas
+
+      - name: Run the bot
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.CHAT_ID }}
+          VS_CURRENCY: 'usd'
+        run: python hype_coin_detector_bot.py
