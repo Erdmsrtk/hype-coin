@@ -1,64 +1,144 @@
-import os import requests import pandas as pd from datetime import datetime from telegram import Bot
+#!/usr/bin/env python3
+"""
+CoinGecko Trend Sinyal Botu
+Trend coinleri tespit eder ve teknik göstergelere göre Telegram'da uyarı gönderir.
+"""
 
-Configuration via environment variables
+import os
+import logging
+import requests
+import pandas as pd
+from datetime import datetime
+from telegram import Bot
+from dotenv import load_dotenv
 
-TOKEN = os.getenv('TELEGRAM_TOKEN') CHAT_ID = os.getenv('TELEGRAM_CHAT_ID') VS_CUR = os.getenv('VS_CURRENCY', 'usd')
+# Ortam değişkenlerini yükle
+load_dotenv()
 
-Initialize Telegram bot
-
-bot = Bot(token=TOKEN)
-
-Fetch trending coins from CoinGecko
-
-def detect_hype_coins(): try: data = requests.get( 'https://api.coingecko.com/api/v3/search/trending' ).json() return [item['item']['id'] for item in data.get('coins', [])] except Exception as e: print(f"Error fetching trending coins: {e}") return []
-
-Calculate RSI indicator
-
-def calculate_rsi(series, period=14): delta = series.diff() gain = delta.clip(lower=0).ewm(alpha=1/period, adjust=False).mean() loss = (-delta.clip(upper=0)).ewm(alpha=1/period, adjust=False).mean() rs = gain / loss return 100 - (100 / (1 + rs))
-
-Calculate MACD indicator
-
-def calculate_macd(series, fast=12, slow=26, signal=9): ema_fast = series.ewm(span=fast, adjust=False).mean() ema_slow = series.ewm(span=slow, adjust=False).mean() macd_line = ema_fast - ema_slow signal_line = macd_line.ewm(span=signal, adjust=False).mean() return macd_line.iloc[-1], signal_line.iloc[-1]
-
-Analyze a single coin
-
-def analyze_coin(coin_id): # Market data market_url = ( f'https://api.coingecko.com/api/v3/coins/markets' f'?vs_currency={VS_CUR}&ids={coin_id}' ) try: market = requests.get(market_url).json()[0] except Exception as e: raise RuntimeError(f"Market data error for {coin_id}: {e}")
-
-price = market.get('current_price')
-change_24h = market.get('price_change_percentage_24h', 0)
-
-# Historical price data (24h hourly)
-hist_url = (
-    f'https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart'
-    f'?vs_currency={VS_CUR}&days=1&interval=hourly'
+# Log ayarları
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-try:
-    hist_json = requests.get(hist_url).json()
-    prices = hist_json.get('prices', [])
-    if not prices:
-        raise KeyError('prices')
-except Exception as e:
-    raise RuntimeError(f"History data error for {coin_id}: {e}")
+logger = logging.getLogger(__name__)
 
-df = pd.DataFrame(prices, columns=['time', 'price'])
-df['time'] = pd.to_datetime(df['time'], unit='ms')
-df.set_index('time', inplace=True)
+# Yapılandırma
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+VS_CURRENCY = os.getenv('VS_CURRENCY', 'usd')
 
-rsi_val = calculate_rsi(df['price']).iloc[-1]
-macd_val, sig_val = calculate_macd(df['price'])
+# Telegram bot başlatma
+bot = Bot(token=TELEGRAM_TOKEN)
 
-return {
-    'price': price,
-    'change_24h': round(change_24h, 2),
-    'rsi': round(rsi_val, 2),
-    'macd_diff': round(macd_val - sig_val, 4)
-}
+def get_trending_coins():
+    """Trend coin listesini alır"""
+    try:
+        response = requests.get(
+            'https://api.coingecko.com/api/v3/search/trending',
+            timeout=30
+        )
+        data = response.json()
+        return [coin['item']['id'] for coin in data.get('coins', [])]
+    except Exception as e:
+        logger.error(f"Trend coinler alınırken hata: {e}")
+        return []
 
-Send Telegram message
+def calculate_rsi(prices, period=14):
+    """RSI hesaplar"""
+    delta = prices.diff()
+    gain = delta.clip(lower=0).ewm(alpha=1/period, adjust=False).mean()
+    loss = (-delta.clip(upper=0)).ewm(alpha=1/period, adjust=False).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
 
-def send_signal(coin_id, stats): timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S') message = ( f"🚀 <b>{coin_id.upper()}</b>\n" f"Price: {stats['price']} {VS_CUR.upper()}\n" f"24h Change: {stats['change_24h']}%\n" f"RSI: {stats['rsi']}\n" f"MACD Diff: {stats['macd_diff']}\n" f"Time UTC: {timestamp}" ) try: bot.send_message(chat_id=CHAT_ID, text=message, parse_mode='HTML') print(f"Sent signal for {coin_id}") except Exception as e: print(f"Telegram error for {coin_id}: {e}")
+def calculate_macd(prices, fast=12, slow=26, signal=9):
+    """MACD hesaplar"""
+    ema_fast = prices.ewm(span=fast, adjust=False).mean()
+    ema_slow = prices.ewm(span=slow, adjust=False).mean()
+    macd_line = ema_fast - ema_slow
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    return macd_line.iloc[-1], signal_line.iloc[-1]
 
-Main execution
+def analyze_coin(coin_id):
+    """Coin analizi yapar"""
+    try:
+        # Piyasa verileri
+        market_data = requests.get(
+            f'https://api.coingecko.com/api/v3/coins/markets?vs_currency={VS_CURRENCY}&ids={coin_id}',
+            timeout=30
+        ).json()[0]
 
-if name == 'main': coins = detect_hype_coins() print(f"Detected coins: {coins}") for coin in coins: try: stats = analyze_coin(coin) send_signal(coin, stats) except Exception as e: print(f"Error processing {coin}: {e}")
+        # Tarihsel veriler
+        history = requests.get(
+            f'https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart?vs_currency={VS_CURRENCY}&days=1&interval=hourly',
+            timeout=30
+        ).json()
 
+        df = pd.DataFrame(history['prices'], columns=['timestamp', 'price'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        df.set_index('timestamp', inplace=True)
+
+        rsi = calculate_rsi(df['price']).iloc[-1]
+        macd, signal = calculate_macd(df['price'])
+
+        return {
+            'coin': coin_id,
+            'price': market_data['current_price'],
+            'change': market_data['price_change_percentage_24h'],
+            'rsi': round(rsi, 2),
+            'macd_diff': round(macd - signal, 4),
+            'volume': market_data['total_volume']
+        }
+
+    except Exception as e:
+        logger.error(f"{coin_id} analizinde hata: {e}")
+        raise
+
+def send_alert(coin_data):
+    """Telegram uyarısı gönderir"""
+    try:
+        message = (
+            f"🚀 <b>{coin_data['coin'].upper()}</b>\n\n"
+            f"💰 Fiyat: {coin_data['price']} {VS_CURRENCY.upper()}\n"
+            f"📈 24s Değişim: %{round(coin_data['change'], 2)}\n"
+            f"📊 RSI: {coin_data['rsi']}\n"
+            f"📉 MACD Farkı: {coin_data['macd_diff']}\n"
+            f"🔄 Hacim: {coin_data['volume']:,.2f}\n\n"
+            f"⏰ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
+
+        bot.send_message(
+            chat_id=TELEGRAM_CHAT_ID,
+            text=message,
+            parse_mode='HTML'
+        )
+        logger.info(f"{coin_data['coin']} için uyarı gönderildi")
+    except Exception as e:
+        logger.error(f"Telegram gönderim hatası: {e}")
+
+def main():
+    """Ana işlem"""
+    logger.info("Bot başlatıldı")
+    
+    coins = get_trending_coins()
+    if not coins:
+        logger.warning("Trend coin bulunamadı")
+        return
+
+    logger.info(f"Analiz edilecek coinler: {', '.join(coins)}")
+
+    for coin in coins:
+        try:
+            data = analyze_coin(coin)
+            send_alert(data)
+        except Exception as e:
+            logger.error(f"{coin} işlenirken hata: {e}")
+            continue
+
+    logger.info("Analiz tamamlandı")
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as e:
+        logger.critical(f"Beklenmeyen hata: {e}")
